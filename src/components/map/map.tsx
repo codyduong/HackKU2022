@@ -1,181 +1,197 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { Status } from '@googlemaps/react-wrapper';
-import { CircularProgress } from '@mui/material';
 import { transformGoogleBounds, transformLatLngToPoint } from './map.util';
 import api, { Camera } from '../../api';
 import { CurrentWindow } from './map.currentWindow';
 
 const LAWRENCE_BOUNDS = {
-    north: 39.033663,
-    south: 38.908504,
-    west: -95.336075,
-    east: -95.165952,
+	north: 39.033663,
+	south: 38.908504,
+	west: -95.336075,
+	east: -95.165952,
 };
 
 const WrapperDiv = styled.div`
-    width: 100vw;
-    height: 100vh;
-    position: absolute;
-    top: 0;
-    left: 0;
+	width: 100vw;
+	height: 100vh;
+	position: absolute;
+	top: 0;
+	left: 0;
 `;
 
 const LoadingWrapper = styled.div`
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    position: absolute;
-    display: flex;
-    justify-content: center;
-    align-content: center;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	position: absolute;
+	display: flex;
+	justify-content: center;
+	align-content: center;
 `;
 
-const render = (status: Status): JSX.Element => {
-    if (status === Status.LOADING) return <LoadingWrapper><CircularProgress /></LoadingWrapper>;
-    if (status === Status.FAILURE) return <LoadingWrapper><CircularProgress /></LoadingWrapper>;
-    return <></>;
-};
-
 interface GoogleMapsProps {
-    currentWindow: null | JSX.Element;
-    setCurrentWindow: React.Dispatch<React.SetStateAction<null | JSX.Element>>;
-    map: google.maps.Map | null;
-    setMap: React.Dispatch<React.SetStateAction<google.maps.Map | null>>;
+	currentWindow: null | JSX.Element;
+	setCurrentWindow: React.Dispatch<React.SetStateAction<null | JSX.Element>>;
+	map: google.maps.Map | null;
+	setMap: React.Dispatch<React.SetStateAction<google.maps.Map | null>>;
 }
 
 export function GoogleMap(props: GoogleMapsProps) {
-    const {currentWindow: _, setCurrentWindow, map, setMap} = props;
+	const { setCurrentWindow, map, setMap } = props;
 
-    const queryParams = new URLSearchParams(window.location.search);
+	const queryParams = new URLSearchParams(window.location.search);
 
-    const {lng: p_lng, lat: p_lat, zoom: p_zoom} = {lng: queryParams.get('lng'), lat: queryParams.get('lat'), zoom: queryParams.get('zoom')};
-    const center = { lng: p_lng ? Number(p_lng) : 38.957799, lat: p_lat ? Number(p_lat) : -95.254341 };
-    const zoom = p_zoom ? Number(p_zoom) : 8;
+	const {
+		lng: lngParam,
+		lat: latParam,
+		zoom: zoomParam,
+	} = {
+		lng: queryParams.get('lng'),
+		lat: queryParams.get('lat'),
+		zoom: queryParams.get('zoom'),
+	};
 
-    const ref = useRef<HTMLDivElement>(null);
-    
-    const [isFetching, setIsFetching] = useState(false);
-    const [cameraMarkerAssociative, setCameraMarkerAssociative] = useState<
-        Record<string, [google.maps.Marker, Camera]>
-    >({});
+	const center = {
+		lng: lngParam ? Number(lngParam) : -95.2510135,
+		lat: latParam ? Number(latParam) : 38.96329192873927,
+	};
 
-    // navigator.geolocation.getCurrentPosition(
-    //     (position: GeolocationPosition) => {
-    //         pos = {
-    //             lat: position.coords.latitude,
-    //             lng: position.coords.longitude,
-    //         };
-    //     }
-    // );
+	const zoom = zoomParam ? Number(zoomParam) : 13;
 
-    useEffect(() => {
-        if (ref.current && !map) {
-            setMap(
-                new window.google.maps.Map(ref.current, {
-                    center: { lng: 38.957099, lat: -95.254776 },
-                    zoom: 6,
-                    disableDefaultUI: true,
-                    restriction: {
-                        latLngBounds: LAWRENCE_BOUNDS,
-                        strictBounds: false,
-                    },
-                })
-            );
-        }
-    }, [ref, map]);
+	const ref = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (map) {
-            ['click', 'idle'].forEach((eventName) =>
-                google.maps.event.clearListeners(map, eventName)
-            );
+	const [isFetching, setIsFetching] = useState(false);
+	const [cameraMarkerAssociative, setCameraMarkerAssociative] = useState<
+		Record<string, [google.maps.Marker, Camera]>
+	>({});
 
-            // https://developers.google.com/maps/documentation/javascript/events
-            //map.addListener('click', onClick);
+	useEffect(() => {
+		if (ref.current && !map) {
+			setMap(
+				new window.google.maps.Map(ref.current, {
+					center,
+					zoom,
+					disableDefaultUI: true,
+					restriction: {
+						latLngBounds: LAWRENCE_BOUNDS,
+						strictBounds: false,
+					},
+				})
+			);
+		}
+	}, [ref, map]);
 
-            // bounds_changed is called too often, instead use idle
-            map.addListener('idle', async () => {
-                const bounds = map.getBounds();
+	useEffect(() => {
+		if (map) {
+			['click', 'idle'].forEach((eventName) =>
+				google.maps.event.clearListeners(map, eventName)
+			);
 
-                const center = bounds?.getCenter();
-                window.history.pushState({}, '', `/?lat=${center?.lat()}&lng=${center?.lng()}&zoom=${map.getZoom()}`);
-                const transformedBounds = transformGoogleBounds(map.getBounds());
+			// https://developers.google.com/maps/documentation/javascript/events
+			//map.addListener('click', onClick);
 
-                if (!isFetching) {
-                    setIsFetching(true);
-                    const boundedCameras = await api.getCamerasInBounds(
-                        transformedBounds
-                    );
-                    const camMarkers: Record<
-                        string,
-                        [google.maps.Marker, Camera]
-                    > = {};
-                    for (const camera of boundedCameras) {
-                        const marker = new google.maps.Marker({
-                            position: new google.maps.LatLng(
-                                camera.lat,
-                                camera.lng
-                            ),
-                            title: camera.label,
-                            icon: {
-                                url: require('./camera.png'), // url
-                                scaledSize: new google.maps.Size(32, 32), // scaled size
-                                anchor: new google.maps.Point(16, 16),
-                            },
-                            collisionBehavior: 'REQUIRED_AND_HIDES_OPTIONAL',
-                        });
-                        camMarkers[camera.label] = [marker, camera];
-                    }
-                    const merged = {
-                        ...camMarkers,
-                        ...cameraMarkerAssociative,
-                    };
-                    Object.values(merged).forEach(([marker, camera]) => {
-                        map && marker.setMap(map);
-                        marker.addListener('click', () => {
-                            const point = transformLatLngToPoint(
-                                new google.maps.LatLng(marker.getPosition()!),
-                                map
-                            );
-                            setCurrentWindow(
-                                <CurrentWindow
-                                    x={point.x}
-                                    y={point.y}
-                                    label={marker.getTitle()!}
-                                    url={camera.image}
-                                    unmountSelf={() => {
-                                        setCurrentWindow(null);
-                                    }}
-                                />
-                            );
-                        });
-                    });
-                    setCameraMarkerAssociative(merged);
-                    setIsFetching(false);
-                }
-            });
-        }
-    }, [map, isFetching, cameraMarkerAssociative, setCurrentWindow]);
+			// bounds_changed is called too often, instead use idle
+			map.addListener('idle', async () => {
+				const bounds = map.getBounds();
 
-    return (
-        <WrapperDiv>
-            <div ref={ref} id="map" />
-        </WrapperDiv>
-    );
+				const center = bounds?.getCenter();
+
+				window.history.pushState(
+					{},
+					'',
+					`/?lat=${center?.lat()}&lng=${center?.lng()}&zoom=${map.getZoom()}`
+				);
+				const transformedBounds = transformGoogleBounds(
+					map.getBounds()
+				);
+
+				if (!isFetching) {
+					setIsFetching(true);
+
+					const boundedCameras = await api.getCamerasInBounds(
+						transformedBounds
+					);
+
+					const camMarkers: Record<
+						string,
+						[google.maps.Marker, Camera]
+					> = {};
+
+					for (const camera of boundedCameras) {
+						const marker = new google.maps.Marker({
+							position: new google.maps.LatLng(
+								camera.lat,
+								camera.lng
+							),
+							title: camera.label,
+							icon: {
+								url: require('./camera.png'), // url
+								scaledSize: new google.maps.Size(24, 24), // scaled size
+								anchor: new google.maps.Point(16, 16),
+							},
+							collisionBehavior: 'REQUIRED_AND_HIDES_OPTIONAL',
+						});
+						camMarkers[camera.label] = [marker, camera];
+					}
+
+					const merged = {
+						...camMarkers,
+						...cameraMarkerAssociative,
+					};
+
+					Object.values(merged).forEach(([marker, camera]) => {
+						map && marker.setMap(map);
+						marker.addListener('click', () => {
+							const point = transformLatLngToPoint(
+								new google.maps.LatLng(marker.getPosition()!),
+								map
+							);
+							setCurrentWindow(
+								<CurrentWindow
+									x={point.x}
+									y={point.y}
+									label={marker.getTitle()!}
+									url={camera.image}
+									unmountSelf={() => {
+										setCurrentWindow(null);
+									}}
+								/>
+							);
+						});
+					});
+					setCameraMarkerAssociative(merged);
+					setIsFetching(false);
+				}
+			});
+		}
+	}, [map, isFetching, cameraMarkerAssociative, setCurrentWindow]);
+
+	return (
+		<WrapperDiv>
+			<div ref={ref} id="map" />
+		</WrapperDiv>
+	);
 }
 
 interface GoogleMapWrapperProps {
-    map: google.maps.Map | null;
-    setMap: React.Dispatch<React.SetStateAction<google.maps.Map | null>>;
+	map: google.maps.Map | null;
+	setMap: React.Dispatch<React.SetStateAction<google.maps.Map | null>>;
 }
 
 export default function GoogleMapWrapper(props: GoogleMapWrapperProps) {
-    const [currentWindow, setCurrentWindow] = useState<JSX.Element | null>(null);
+	const [currentWindow, setCurrentWindow] = useState<JSX.Element | null>(
+		null
+	);
 
-    return <>
-        {currentWindow}
-        <GoogleMap currentWindow={currentWindow} setCurrentWindow={setCurrentWindow} {...props} />
-    </>;
+	return (
+		<>
+			{currentWindow}
+			<GoogleMap
+				currentWindow={currentWindow}
+				setCurrentWindow={setCurrentWindow}
+				{...props}
+			/>
+		</>
+	);
 }
