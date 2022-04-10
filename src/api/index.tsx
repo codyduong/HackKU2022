@@ -2,21 +2,21 @@ import Firebase from '../App.firebase';
 import type { Bounds } from '../components/map';
 
 type LatNLng = {
-    lat: number;
-    lng: number;
+	lat: number;
+	lng: number;
 };
 
 type Conditions = {
-    temperature: number;
-    unit: string;
-    weather: string;
+	temperature: number;
+	unit: string;
+	weather: string;
 };
 
 export type Camera = {
-    label: string;
-    image: string;
-    lat: number; //+ is North, - is South
-    lng: number; //+ is East,, - is West
+	label: string;
+	image: string;
+	lat: number; //+ is North, - is South
+	lng: number; //+ is East,, - is West
 };
 
 const api = {
@@ -41,7 +41,7 @@ const api = {
 				}
 				return obj;
 			},
-            {} as any
+			{} as any
 		);
 		const associate_array_lng = matching_lng.docs.reduce(
 			(previousValue, currentValue) => {
@@ -52,7 +52,7 @@ const api = {
 				}
 				return obj;
 			},
-            {} as any
+			{} as any
 		);
 		const values = [];
 		for (const [key, value] of Object.entries(associative_array_lat)) {
