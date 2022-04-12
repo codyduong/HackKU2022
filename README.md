@@ -1,3 +1,7 @@
+# This project has been archived, it's current state represnentative of what was submitted for [HackKU 2022](https://devpost.com/software/mapsy)
+Ongoing repository here: https://github.com/codyduong/mapsy
+
+<br></br>
 <div id="top"></div>
 
 <!-- PROJECT SHIELDS -->
